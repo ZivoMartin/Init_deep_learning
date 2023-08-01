@@ -1,1 +1,2 @@
-print(accuracy_score(y, predict(X, W, b)))
+plt.plot(log_loss_tab)
+# plt.show()

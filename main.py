@@ -5,100 +5,98 @@ from sklearn.datasets import make_blobs, make_circles
 X, y = make_circles(n_samples=100, noise=0.1, factor=0.3, random_state = 0)
 X = X.T
 y = y.reshape((1, y.shape[0]))
-print("dimention de X:", X.shape)
-print("dimention de y:", y.shape)
 
 
-def init(n0, n1, n2):
-    W1 = np.random.randn(n1, n0)
-    W2 = np.random.randn(n2, n1)
-    b1 = np.random.randn(n1, 1)
-    b2 = np.random.randn(n2, 1)
-    params = {
-        "W1": W1,
-        "W2": W2,
-        "b1": b1,
-        "b2": b2
-    }
+
+def init(dim_tab):
+    params = {}
+    i = 1
+    size = len(dim_tab)
+
+    while(i < size):
+        params["W"+str(i)] = np.random.randn(dim_tab[i], dim_tab[i-1])
+        params["b"+str(i)] = np.random.randn(dim_tab[i], 1) 
+        i += 1
+    
     return params
 
 
 def forward_propagation(X, params):
-    W1 = params["W1"]
-    W2 = params["W2"]
-    b1 = params["b1"]
-    b2 = params["b2"]
+    activations = {"A0": X}
+    size = len(params) // 2
+    i = 1
+    while(i <= size):
+        i_str = str(i)
+        Zi = params["W"+i_str].dot(activations["A"+str(i-1)]) + params["b"+i_str]
+        activations["A"+i_str] = 1 / (1 + np.exp(-Zi))
+        i += 1
     
-    Z1 = W1.dot(X) + b1
-    A1 = 1 / (1 + np.exp(-Z1))
-    Z2 = W2.dot(A1) + b2
-    A2 = 1 / (1 + np.exp(-Z2))
-
-    activations = {
-        "A1": A1,
-        "A2": A2
-    }
     return activations
+    
 
 def back_propagation(X, y, activations, params):
-    A1 = activations["A1"]
-    A2 = activations["A2"]
-    W2 = params["W2"]
     m = y.shape[1]
+    gradients = {}
+    i = len(params) // 2
+    dZ = activations["A"+str(i)] - y
 
-    dZ2 = A2 - y
-    dW2 = 1 / m * dZ2.dot(A1.T)
-    db2 = 1 / m * np.sum(dZ2, axis=1, keepdims=True)
-    dZ1 = np.dot(W2.T, dZ2) * A1 * (1 - A1)
-    dW1 = 1 / m * dZ1.dot(X.T)
-    db1 = 1 / m * np.sum(dZ1, axis=1, keepdims=True)
-
-    gradients = {
-        "dW2": dW2,
-        "dW1": dW1,
-        "db2": db2,
-        "db1": db1
-    }
+    while(i >= 1):
+        gradients["dW"+str(i)] = 1/m * dZ.dot(activations["A"+str(i-1)].T)
+        gradients["db"+str(i)] = 1/m * np.sum(dZ, axis=1, keepdims = True)
+        if(i > 1):
+            dZ = np.dot(params["W"+str(i)].T, dZ) * activations["A"+str(i-1)]*(1-activations["A"+str(i-1)])
+        i -= 1
+    
     return gradients
  
 def update(params, gradients, learning_rate):
-    params["W1"] = params["W1"] - learning_rate*gradients["dW1"]
-    params["W2"] = params["W2"] - learning_rate*gradients["dW2"]
-    params["b1"] = params["b1"] - learning_rate*gradients["db1"]
-    params["b2"] = params["b2"] - learning_rate*gradients["db2"]
-
+    i = 1
+    size = len(params) // 2
+    while(i <= size):
+        params["W"+str(i)] = params["W"+str(i)] - learning_rate * gradients["dW"+str(i)]
+        params["b"+str(i)] = params["b"+str(i)] - learning_rate * gradients["db"+str(i)]
+        i += 1
     return params
 
 def log_loss(A, y):
     L = 1/len(y) * np.sum(-y*np.log(A) - (1-y) * np.log(1-A))
     return L
 
-def neuron_network(X, y, n1=32, learning_rate = 0.01, n_iter = 2000):
-    n0 = X.shape[0]
-    n2 = y.shape[0]
-    params = init(n0, n1, n2)
+def neuron_network(X, y, dim_tab, learning_rate = 0.1, n_iter = 1000):
+    params = init(dim_tab)
     log_loss_tab = []
+    couche_finale = str(len(params) // 2)
     for i in range(n_iter):
         activations = forward_propagation(X, params)
-        log_loss_tab.append(log_loss(activations["A2"], y))
+        log_loss_tab.append(log_loss(activations["A"+couche_finale], y))
         gradients = back_propagation(X, y, activations, params)
         params = update(params, gradients, learning_rate)
         
-    plt.plot(log_loss_tab)
-    plt.show()
-    return params
+    
+    return params, log_loss_tab
 
 
-def predict(X, params):
-    return forward_propagation(X, params)["A2"] >= 0.5
+def predict(X, params, last_couche):
+    return forward_propagation(X, params)["A"+str(last_couche)] >= 0.5
 
 
-def predict_a_new_plante(x1, x2, W, b):
-    new_plant = np.array([x1, x2])
-    print(predict(new_plant, W, b))
 
+dim_tab = [X.shape[0], 32, 32, 32, y.shape[0]]
+params, log_loss_tab = neuron_network(X, y, dim_tab)
 
-params = neuron_network(X, y)
-
-plt.scatter(X[0, :], X[1, :], c=y, cmap='summer')
+# plt.plot(log_loss_tab)
+# plt.show()
+fig, ax = plt.subplots()
+ax.scatter(X[0, :], X[1, :], c=y, cmap="summer", s=50)
+x0_lim = ax.get_xlim()
+x1_lim = ax.get_ylim()
+resolution = 100
+x0 = np.linspace(x0_lim[0], x0_lim[1], resolution)
+x1 = np.linspace(x1_lim[0], x1_lim[1], resolution)
+X0, X1 = np.meshgrid(x0, x1)
+XX = np.vstack((X0.ravel(), X1.ravel()))
+Z = predict(XX, params, len(dim_tab)-1)
+Z = Z.reshape((resolution, resolution))
+ax.pcolormesh(X0, X1, Z, cmap="summer", alpha=0.3, zorder=-1)
+ax.contour(X0, X1, Z, colors="green")
 plt.show()
